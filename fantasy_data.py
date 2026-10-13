@@ -20,27 +20,31 @@ class Role(str, Enum):
 
 
 class Trait(str, Enum):
-    FRACTAL = "Fractal"
+    INCORRUPTIBLE = "Incorruptible"
     FRIENDLY = "Friendly"
     VAMPIRIC = "Vampiric"
     UNIQUE = "Unique"
     BENEVOLENT = "Benevolent"
 
 
-ALL_TRAITS = [Trait.FRACTAL, Trait.FRIENDLY, Trait.VAMPIRIC, Trait.UNIQUE, Trait.BENEVOLENT]
+ALL_TRAITS = [Trait.INCORRUPTIBLE, Trait.FRIENDLY, Trait.VAMPIRIC, Trait.UNIQUE, Trait.BENEVOLENT]
 
-# Tier multipliers from game rules:
-# Tier 1: +10% (1.10)
-# Tier 2: +30% (1.30)
-# Tier 3: +60% (1.60)
-# Tier 4: +100% (2.00)
-# Tier 5: +150% (2.50)
+# Tier percentage bonuses from in-game compendium:
+# Tier 1: +10% (0.10)
+# Tier 2: +30% (0.30)
+# Tier 3: +60% (0.60)
+# Tier 4: +100% (1.00)
+# Tier 5: +150% (1.50)
+TIER_BONUSES: Dict[int, float] = {
+    1: 0.10,
+    2: 0.30,
+    3: 0.60,
+    4: 1.00,
+    5: 1.50,
+}
+
 TIER_MULTIPLIERS: Dict[int, float] = {
-    1: 1.10,
-    2: 1.30,
-    3: 1.60,
-    4: 2.00,
-    5: 2.50,
+    tier: 1.0 + bonus for tier, bonus in TIER_BONUSES.items()
 }
 
 # Banner layout by stage

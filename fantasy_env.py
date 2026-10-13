@@ -19,12 +19,15 @@ from fantasy_data import (
     OPERATIONS,
     OP_TO_ID,
     ID_TO_OP,
+    TIER_BONUSES,
     TIER_MULTIPLIERS,
 )
 from scoring import (
     Emblem,
     calculate_banner_score,
     calculate_total_fantasy_score,
+    calculate_banner_trait_bonuses,
+    calculate_emblem_score,
 )
 
 # Probability distribution for rolling tiers (Tier 1 is common, Tier 5 is rare)
@@ -353,14 +356,24 @@ class DotaFantasyEnv(gym.Env):
         return np.array(features, dtype=np.float32)
 
     def render(self):
-        """Prints a human-readable summary of the current fantasy roster."""
-        print(f"\n{'='*50}")
+        """Prints a human-readable summary of the current fantasy roster matching in-game UI."""
+        print(f"\n{'='*65}")
         print(f"Tokens remaining: {self.tokens}/{self.initial_tokens} | Total Score: {self.current_score:.1f}")
         print(f"Current offers: {self.current_offers}")
-        print(f"{'='*50}")
+        print(f"{'='*65}")
         for role in self.roles:
-            banner_score = calculate_banner_score(role, self.roster[role])
-            print(f"[{role.value}] Score: {banner_score:.1f}")
-            for i, e in enumerate(self.roster[role]):
-                mult = TIER_MULTIPLIERS[e.tier]
-                print(f"  Slot {i+1} ({e.color.value:5s}): Tier {e.tier} (x{mult:.2f}) | {e.stat:14s} | {e.trait.value}")
+            emblems = self.roster[role]
+            banner_score = calculate_banner_score(role, emblems)
+            trait_bonuses = calculate_banner_trait_bonuses(emblems)
+            print(f"[{role.value}] Banner Score: {banner_score:.1f}")
+            for i, (e, t_bonus) in enumerate(zip(emblems, trait_bonuses)):
+                tier_b = TIER_BONUSES.get(e.tier, 0.10)
+                total_pct = int(round((1.0 + tier_b + t_bonus) * 100))
+                tier_pct = int(round(tier_b * 100))
+                trait_pct = int(round(t_bonus * 100))
+                pts = calculate_emblem_score(role, e, t_bonus)
+                
+                tier_str = f"TIER {e.tier} (+{tier_pct}%)"
+                trait_sign = "+" if trait_pct > 0 else ""
+                trait_str = f"{e.trait.value} ({trait_sign}{trait_pct}%)"
+                print(f"  Slot {i+1} ({e.color.value:5s}): {e.stat:15s} {total_pct}% | {tier_str:15s} | {trait_str:20s} | Pts: {pts:6.1f}")

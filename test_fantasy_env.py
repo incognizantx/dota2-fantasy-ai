@@ -1,48 +1,77 @@
 """
 Unit tests for Dota 2 Fantasy Environment and Scoring.
+Matches verified formulas against in-game screenshots.
 """
 
 import pytest
 import numpy as np
-from fantasy_data import Color, Role, Trait, STAGE_1_LAYOUT
+from fantasy_data import Color, Role, Trait, TIER_BONUSES
 from scoring import (
     Emblem,
     calculate_banner_trait_bonuses,
+    calculate_emblem_multiplier,
     calculate_banner_score,
     calculate_total_fantasy_score,
 )
 from fantasy_env import DotaFantasyEnv
 
 
-def test_trait_scoring():
-    # Test Friendly bonus
+def test_screenshot_exact_matching():
+    """
+    Validates calculations against the exact values shown on in-game screenshot:
+    Core:
+      Slot 1 (RED): DEATHS Tier V (150%) + Vampiric (50%) = 300%
+      Slot 2 (GREEN): TEAMFIGHT Tier I (10%) + Incorruptible (60%) = 170%
+      Slot 3 (RED): GPM Tier V (150%) + Benevolent (0%) = 250%
+    Mid:
+      Slot 1 (RED): GPM Tier V (150%) + Unique (50%) = 300%
+      Slot 2 (BLUE): OBS WARDS Tier III (60%) + Benevolent (20%) = 180%
+      Slot 3 (GREEN): STUNS Tier IV (100%) + Benevolent (20%) = 220%
+    """
+    # Core banner
+    core_emblems = [
+        Emblem(Color.RED, "Deaths", 5, Trait.VAMPIRIC),
+        Emblem(Color.GREEN, "Teamfight", 1, Trait.INCORRUPTIBLE),
+        Emblem(Color.RED, "GPM", 5, Trait.BENEVOLENT),
+    ]
+    core_bonuses = calculate_banner_trait_bonuses(core_emblems)
+    assert core_bonuses[0] == pytest.approx(0.50)  # Vampiric +50%
+    assert core_bonuses[1] == pytest.approx(0.60)  # Incorruptible on T1: +60%
+    assert core_bonuses[2] == pytest.approx(0.00)  # Benevolent standalone: 0%
+
+    core_mults = [calculate_emblem_multiplier(e, b) for e, b in zip(core_emblems, core_bonuses)]
+    assert core_mults[0] == pytest.approx(3.00)  # 300%
+    assert core_mults[1] == pytest.approx(1.70)  # 170%
+    assert core_mults[2] == pytest.approx(2.50)  # 250%
+
+    # Mid banner
+    mid_emblems = [
+        Emblem(Color.RED, "GPM", 5, Trait.UNIQUE),
+        Emblem(Color.BLUE, "Wards", 3, Trait.BENEVOLENT),
+        Emblem(Color.GREEN, "Stuns", 4, Trait.BENEVOLENT),
+    ]
+    mid_bonuses = calculate_banner_trait_bonuses(mid_emblems)
+    assert mid_bonuses[0] == pytest.approx(0.50)  # Unique standalone on banner: +50%
+    assert mid_bonuses[1] == pytest.approx(0.20)  # Benevolent adjacent: +20%
+    assert mid_bonuses[2] == pytest.approx(0.20)  # Benevolent adjacent: +20%
+
+    mid_mults = [calculate_emblem_multiplier(e, b) for e, b in zip(mid_emblems, mid_bonuses)]
+    assert mid_mults[0] == pytest.approx(3.00)  # 300%
+    assert mid_mults[1] == pytest.approx(1.80)  # 180%
+    assert mid_mults[2] == pytest.approx(2.20)  # 220%
+
+
+def test_friendly_trait_stacking():
+    # 2 Friendly traits -> both should get +0.50 (+50%)
     emblems = [
-        Emblem(Color.RED, "Creeps", 1, Trait.FRIENDLY),
-        Emblem(Color.GREEN, "Teamfight", 1, Trait.FRIENDLY),
-        Emblem(Color.RED, "GPM", 1, Trait.UNIQUE),
+        Emblem(Color.RED, "Creeps", 2, Trait.FRIENDLY),
+        Emblem(Color.GREEN, "Teamfight", 2, Trait.FRIENDLY),
+        Emblem(Color.RED, "GPM", 1, Trait.VAMPIRIC),
     ]
     bonuses = calculate_banner_trait_bonuses(emblems)
-    # 2 Friendly traits -> both should get +0.50
     assert bonuses[0] == pytest.approx(0.50)
     assert bonuses[1] == pytest.approx(0.50)
-    # Unique trait does NOT trigger because there are 2 Friendly traits (not all unique)
-    assert bonuses[2] == pytest.approx(0.0)
-
-
-def test_vampiric_trait_scoring():
-    # Test Vampiric bonus: +50% self, -25% adjacent
-    emblems = [
-        Emblem(Color.RED, "Creeps", 1, Trait.VAMPIRIC),
-        Emblem(Color.GREEN, "Teamfight", 1, Trait.BENEVOLENT),
-        Emblem(Color.RED, "GPM", 1, Trait.FRACTAL),
-    ]
-    bonuses = calculate_banner_trait_bonuses(emblems)
-    # Index 0 (Vampiric): +0.50 self + 0.20 from Benevolent neighbor = +0.70
-    assert bonuses[0] == pytest.approx(0.70)
-    # Index 1 (Benevolent): -0.25 from Vampiric neighbor = -0.25
-    assert bonuses[1] == pytest.approx(-0.25)
-    # Index 2 (Fractal): all tiers are Tier 1 (not unique), +0.20 from Benevolent neighbor = +0.20
-    assert bonuses[2] == pytest.approx(0.20)
+    assert bonuses[2] == pytest.approx(0.50)
 
 
 def test_env_initialization_and_reset():
